@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Tree Upload Demo</title>
+  <style>
+    body{font-family:sans-serif;margin:1em}
+    ul{list-style:none;padding-left:1em}
+    li{cursor:pointer}
+    .folder{font-weight:bold}
+  </style>
+</head>
+<body>
+  <h2>目录树</h2>
+  <div id="tree"></div>
+
+  <h3>新建文件夹</h3>
+  <input id="newFolderName" placeholder="文件夹名">
+  <input id="newFolderParent" placeholder="父路径(/ 或 /foo/)">
+  <button onclick="createFolder()">创建</button>
+
+  <h3>上传文件</h3>
+  <form id="uploadForm">
+    文件：<input type="file" name="file"><br>
+    目录：<input type="text" name="path" value="/"><br>
+    文件名：<input type="text" name="name"><br>
+    备注：<input type="text" name="info"><br>
+    <button type="submit">上传</button>
+  </form>
+
+  <script src="client.js"></script>
+</body>
+</html>

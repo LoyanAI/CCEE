@@ -1,0 +1,6 @@
+analysiser/*
+*.safetensors
+*.bin
+stzy/venv/*
+stzy/img/*
+back/node_modules/*

@@ -1,0 +1,166 @@
+<canvas id="canvas" width="600" height="400"></canvas>
+<canvas id="canvas2" width="600" height="400"></canvas>
+<button onclick="notescrink()">处理图像</button>
+<script>
+async function initCamera() {
+  const video = document.createElement('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+  video.play();
+
+  function drawFrame() {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(drawFrame);
+  }
+  drawFrame();
+}
+
+initCamera();
+</script>
+<script>
+// 工具函数：RGB 转 HSV
+function rgb2hsv(r, g, b) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  const s = max === 0 ? 0 : d / max;
+  const v = max / 255;
+  return [s, v];
+}
+
+// 获取图像数据
+function getImageData(canvas) {
+  const ctx = canvas.getContext('2d');
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+// 写入图像数据
+function putImageData(canvas, imageData) {
+  const ctx = document.getElementById('canvas2').getContext('2d');
+  ctx.putImageData(imageData, 0, 0);
+}
+
+// 获取背景色（频率最高）
+function getBackgroundColor(data, sampleRate = 0.05) {
+  const colorMap = new Map();
+  const pixels = data.data;
+  const step = Math.floor(1 / sampleRate);
+
+  for (let i = 0; i < pixels.length; i += 4 * step) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    const key = `${r},${g},${b}`;
+    colorMap.set(key, (colorMap.get(key) || 0) + 1);
+  }
+
+  let maxKey = null;
+  let maxCount = 0;
+  for (const [key, count] of colorMap.entries()) {
+    if (count > maxCount) {
+      maxCount = count;
+      maxKey = key;
+    }
+  }
+
+  return maxKey.split(',').map(Number);
+}
+
+// 判断是否为前景像素
+function isForeground(r, g, b, bgColor, satThresh = 0.2, valThresh = 0.25) {
+  const [s_bg, v_bg] = rgb2hsv(...bgColor);
+  const [s, v] = rgb2hsv(r, g, b);
+  return Math.abs(s - s_bg) > satThresh || Math.abs(v - v_bg) > valThresh;
+}
+
+// 简化版 K-means（k=4）
+function kmeans(samples, k = 4, maxIter = 10) {
+  const centers = samples.slice(0, k).map(s => [...s]);
+  for (let iter = 0; iter < maxIter; iter++) {
+    const clusters = Array.from({ length: k }, () => []);
+    for (const sample of samples) {
+      let minDist = Infinity;
+      let closest = 0;
+      for (let i = 0; i < k; i++) {
+        const d = Math.hypot(sample[0] - centers[i][0], sample[1] - centers[i][1], sample[2] - centers[i][2]);
+        if (d < minDist) {
+          minDist = d;
+          closest = i;
+        }
+      }
+      clusters[closest].push(sample);
+    }
+    for (let i = 0; i < k; i++) {
+      if (clusters[i].length > 0) {
+        const sum = [0, 0, 0];
+        for (const p of clusters[i]) {
+          sum[0] += p[0]; sum[1] += p[1]; sum[2] += p[2];
+        }
+        centers[i] = [Math.round(sum[0] / clusters[i].length), Math.round(sum[1] / clusters[i].length), Math.round(sum[2] / clusters[i].length)];
+      }
+    }
+  }
+  return centers;
+}
+
+// 主处理函数
+function notescrink() {
+  const canvas = document.getElementById('canvas');
+  const imageData = getImageData(canvas);
+  const data = imageData.data;
+
+  const bgColor = getBackgroundColor(imageData);
+  const samples = [];
+
+  // 采样前景像素
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    if (isForeground(r, g, b, bgColor)) {
+      samples.push([r, g, b]);
+    }
+  }
+
+  // 调色板 = 背景色 + 前景聚类中心
+  const palette = [bgColor, ...kmeans(samples, 3)];
+
+  // 应用调色板（最近邻）
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    let minDist = Infinity;
+    let bestIndex = 0;
+    for (let j = 0; j < palette.length; j++) {
+      const [pr, pg, pb] = palette[j];
+      const dist = Math.hypot(r - pr, g - pg, b - pb);
+      if (dist < minDist) {
+        minDist = dist;
+        bestIndex = j;
+      }
+    }
+    const [nr, ng, nb] = palette[bestIndex];
+    data[i] = nr;
+    data[i + 1] = ng;
+    data[i + 2] = nb;
+  }
+
+  // 可选：背景变白
+  const [br, bg, bb] = palette[0];
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    if (r === br && g === bg && b === bb) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+    }
+  }
+
+  putImageData(canvas, imageData);
+}
+</script>

@@ -1,0 +1,17 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拍照矫正</title>
+<style>
+  video,canvas{max-width:100%;border:1px solid #ccc}
+  button{margin:4px}
+</style>
+
+<video id="video" autoplay playsinline></video><br>
+<button id="snap">拍照</button>
+
+<canvas id="canvas" style="display:none"></canvas>
+<button id="ok" style="display:none">纠正并上传</button>
+<img id="result" style="max-width:100%;display:none">
+
+<script src="perspective.js"></script>
+<script src="main.js"></script>
