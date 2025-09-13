@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能文件管理系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            backdrop-filter: blur(10px);
+        }
+
+        /* 左侧边栏 */
+        .sidebar {
+            width: 250px;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(94, 234, 212, 0.1);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #5eead4;
+            transition: opacity 0.3s;
+        }
+
+        .sidebar.collapsed .sidebar-title {
+            opacity: 0;
+        }
+
+        .toggle-sidebar {
+            background: none;
+            border: none;
+            color: #5eead4;
+            cursor: pointer;
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+
+        .toggle-sidebar:hover {
+            transform: rotate(90deg);
+        }
+
+        .folder-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .folder-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid transparent;
+        }
+
+        .folder-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: #5eead4;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .folder-item:hover {
+            background: rgba(94, 234, 212, 0.1);
+            border-color: rgba(94, 234, 212, 0.2);
+        }
+
+        .folder-item.active {
+            background: rgba(94, 234, 212, 0.15);
+            border-color: rgba(94, 234, 212, 0.3);
+        }
+
+        .folder-item.active::before {
+            transform: translateX(0);
+        }
+
+        .folder-icon {
+            margin-right: 10px;
+            font-size: 16px;
+            transition: transform 0.3s;
+        }
+
+        .folder-item:hover .folder-icon {
+            transform: scale(1.1);
+        }
+
+        .folder-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: opacity 0.3s;
+        }
+
+        .sidebar.collapsed .folder-name {
+            opacity: 0;
+        }
+
+        .file-count {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-left: 5px;
+            transition: opacity 0.3s;
+        }
+
+        .sidebar.collapsed .file-count {
+            opacity: 0;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(10px);
+            margin: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            box-shadow: 0 8px 32px rgba(2, 8, 20, 0.4);
+            overflow: hidden;
+        }
+
+        /* 顶部工具栏 */
+        .toolbar {
+            background: rgba(15, 23, 42, 0.7);
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(30, 41, 59, 0.7);
+            color: #e2e8f0;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .btn:hover {
+            background: rgba(56, 189, 248, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(2, 8, 20, 0.3);
+        }
+
+        .btn-primary {
+            background: rgba(56, 189, 248, 0.3);
+            color: white;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: rgba(56, 189, 248, 0.4);
+        }
+
+        .search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            padding: 8px 35px 8px 15px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            border-radius: 20px;
+            width: 250px;
+            transition: all 0.3s ease;
+            background: rgba(15, 23, 42, 0.5);
+            color: #e2e8f0;
+            backdrop-filter: blur(5px);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #5eead4;
+            width: 300px;
+            box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 12px;
+            color: #94a3b8;
+        }
+
+        /* 文件视图 */
+        .file-view {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.3);
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+        }
+
+        .file-item {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            backdrop-filter: blur(5px);
+            overflow: hidden;
+        }
+
+        .file-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #5eead4, #38bdf8);
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .file-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(2, 8, 20, 0.3);
+            border-color: rgba(94, 234, 212, 0.3);
+        }
+
+        .file-item:hover::before {
+            transform: translateY(0);
+        }
+
+        .file-item.selected {
+            border-color: #5eead4;
+            background: rgba(94, 234, 212, 0.1);
+            box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
+        }
+
+        .file-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+
+        .file-preview {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            position: relative;
+            transition: transform 0.3s;
+        }
+
+        .file-item:hover .file-preview {
+            transform: scale(1.1);
+        }
+
+        .file-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .file-name {
+            text-align: center;
+            font-size: 12px;
+            word-break: break-word;
+            color: #e2e8f0;
+            transition: all 0.3s;
+        }
+
+        .file-item:hover .file-name {
+            color: #5eead4;
+        }
+
+        .file-name.editing {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid #5eead4;
+            padding: 2px 5px;
+            border-radius: 4px;
+            outline: none;
+            width: 100%;
+            color: #e2e8f0;
+            box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.2);
+        }
+
+        .file-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 5px;
+            justify-content: center;
+        }
+
+        .file-tag {
+            background: rgba(94, 234, 212, 0.15);
+            color: #5eead4;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            border: 1px solid rgba(94, 234, 212, 0.2);
+        }
+
+        /* 文件预览模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 8, 20, 0.9);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            position: relative;
+            width: 90%;
+            height: 90%;
+            margin: 5% auto;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 16px;
+            overflow: hidden;
+            animation: slideIn 0.3s ease;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            box-shadow: 0 25px 50px rgba(2, 8, 20, 0.5);
+            backdrop-filter: blur(12px);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #5eead4;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #94a3b8;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            color: #5eead4;
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 20px;
+            height: calc(100% - 70px);
+            overflow: auto;
+            background: rgba(15, 23, 42, 0.6);
+        }
+
+        .text-viewer {
+            white-space: pre-wrap;
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1.6;
+            color: #e2e8f0;
+        }
+
+        .image-viewer {
+            text-align: center;
+        }
+
+        .image-viewer img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        /* 拖放区域 */
+        .drop-zone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 8, 20, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        .drop-zone.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .drop-message {
+            font-size: 24px;
+            color: #5eead4;
+            text-align: center;
+            padding: 40px;
+            border: 3px dashed #5eead4;
+            border-radius: 20px;
+            background: rgba(15, 23, 42, 0.7);
+            box-shadow: 0 0 40px rgba(94, 234, 212, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(94, 234, 212, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0); }
+        }
+
+        /* 右键菜单 */
+        .context-menu {
+            position: fixed;
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(2, 8, 20, 0.4);
+            padding: 8px 0;
+            display: none;
+            z-index: 1500;
+            min-width: 180px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .context-menu-item {
+            padding: 10px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            color: #e2e8f0;
+            position: relative;
+        }
+
+        .context-menu-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: #5eead4;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .context-menu-item:hover {
+            background: rgba(94, 234, 212, 0.1);
+            padding-left: 25px;
+        }
+
+        .context-menu-item:hover::before {
+            transform: translateX(0);
+        }
+
+        .context-menu-separator {
+            height: 1px;
+            background: rgba(94, 234, 212, 0.1);
+            margin: 5px 0;
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(15, 23, 42, 0.3);
+            border-top: 3px solid #5eead4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(94, 234, 212, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(94, 234, 212, 0.5);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .file-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+            
+            .search-input {
+                width: 150px;
+            }
+            
+            .search-input:focus {
+                width: 180px;
+            }
+        }
+
+        /* 标签输入 */
+        .tag-input {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 5px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            border-radius: 8px;
+            min-height: 35px;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .tag {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        .tag-remove {
+            cursor: pointer;
+            font-weight: bold;
+            color: #5eead4;
+            transition: all 0.2s;
+        }
+
+        .tag-remove:hover {
+            color: #f87171;
+            transform: scale(1.2);
+        }
+
+        .tag-input input {
+            border: none;
+            outline: none;
+            flex: 1;
+            min-width: 100px;
+            padding: 3px;
+            background: transparent;
+            color: #e2e8f0;
+        }
+
+        /* 新建文件夹对话框 */
+        .dialog {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 8, 20, 0.9);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .dialog.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .dialog-content {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 16px;
+            padding: 30px;
+            min-width: 400px;
+            box-shadow: 0 25px 50px rgba(2, 8, 20, 0.5);
+            animation: slideIn 0.3s ease;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            backdrop-filter: blur(12px);
+        }
+
+        .dialog-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #5eead4;
+        }
+
+        .dialog-body {
+            margin-bottom: 20px;
+        }
+
+        .dialog-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: rgba(15, 23, 42, 0.5);
+            color: #e2e8f0;
+        }
+
+        .dialog-input:focus {
+            outline: none;
+            border-color: #5eead4;
+            box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
+        }
+
+        .dialog-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* 文件类型图标 */
+        .file-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .file-item:hover .file-icon {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        .file-icon.txt { background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%); }
+        .file-icon.doc, .file-icon.docx { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .file-icon.jpg, .file-icon.jpeg, .file-icon.png, .file-icon.gif { 
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+        }
+        .file-icon.pdf { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); }
+        .file-icon.zip, .file-icon.rar { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+        .file-icon.default { background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); }
+
+        .file-icon::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .file-item:hover .file-icon::after {
+            opacity: 1;
+        }
+
+        /* 文件选择框 */
+        .file-input {
+            display: none;
+        }
+
+        /* 提示消息 */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9);
+            color: #5eead4;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(2, 8, 20, 0.4);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            z-index: 3000;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .toast.show {
+            display: flex;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translate(-50%, 100%); }
+            to { transform: translate(-50%, 0); }
+        }
+
+        .toast.error {
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
+
+        .toast.success {
+            color: #34d399;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+        /* 文件夹视图直接展示原图/文本 */
+.folder-view-img {
+    max-width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+.folder-view-text {
+    background: #f6f8fa;
+    padding: 15px;
+    border-radius: 8px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 60vh;
+    overflow: auto;
+}
+/* 密铺文件容器 */
+.file-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 10px;
+    padding: 20px;
+}
+
+/* 单个卡片：宽度弹性，高度随内容 */
+.file-card {
+    position: relative;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(94, 234, 212, 0.1);
+    border-radius: 12px;
+    padding: 10px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    /* 宽度区间 */
+    min-width: 120px;
+    max-width: 360px;
+    width: auto;
+}
+
+.file-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(2, 8, 20, 0.4);
+}
+
+.file-card.selected {
+    border-color: #5eead4;
+    box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
+}
+
+/* 图片：原图比例，最大 240px 宽 */
+.file-card img {
+    display: block;
+    max-width: 240px;
+    width: auto;
+    height: auto;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+/* 文本：自动撑开 */
+.file-card pre {
+    margin: 0;
+    padding: 10px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 60vh;
+    overflow: auto;
+    min-width: 120px;
+    max-width: 360px;
+}
+.tree-indent  { margin-left: 20px; }
+.tree-arrow  { cursor: pointer; user-select: none; margin-right: 4px; transition: transform .2s; }
+.tree-arrow.open { transform: rotate(90deg); }
+/* 树形折叠 */
+.tree-indent  { margin-left: 20px; }
+.tree-arrow   { cursor: pointer; user-select: none; margin-right: 4px; transition: transform .2s; }
+.tree-arrow.open { transform: rotate(90deg); }
+.folder-item.active > .folder-name { color: #5eead4; font-weight: 600; }
+/* ===== 子文件夹栏 ===== */
+.sub-folder-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(15, 23, 42, 0.4);
+    border-bottom: 1px solid rgba(94, 234, 212, 0.1);
+    align-items: center;
+}
+.sub-folder-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(94, 234, 212, 0.15);
+    border-radius: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+}
+.sub-folder-card:hover {
+    background: rgba(56, 189, 248, 0.2);
+    transform: translateY(-2px);
+}
+.sub-folder-card .ico {
+    font-size: 18px;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">文件夹</h2>
+                <button class="toggle-sidebar" id="toggleSidebar">☰</button>
+            </div>
+            <div class="folder-tree" id="folderTree">
+                <!-- 文件夹列表将动态生成 -->
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部工具栏 -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <button class="btn btn-primary" id="uploadBtn">
+                        <span>📤</span> 上传文件
+                    </button>
+                    <button class="btn" id="newFolderBtn">
+                        <span>📁</span> 新建文件夹
+                    </button>
+                    <button class="btn" id="refreshBtn">
+                        <span>🔄</span> 刷新
+                    </button>
+                </div>
+                <div class="toolbar-right">
+                    <div class="search-box">
+                        <input type="text" class="search-input" id="searchInput" placeholder="搜索文件...">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                    <button class="btn" id="viewToggle">
+                        <span>📋</span> 视图
+                    </button>
+                </div>
+            </div>
+
+            <!-- 文件视图 -->
+            <div class="file-view" id="fileView">
+                <!-- 文件视图 -->
+<div class="file-view" id="fileView">
+    <!-- 🔥新增：子文件夹栏 -->
+    <div class="sub-folder-bar" id="subFolderBar" style="display:none"></div>
+
+    <div class="file-strip" id="fileGrid">
+        <!-- 文件卡片 -->
+    </div>
+</div>
+                <div class="file-grid" id="fileGrid">
+                    <!-- 文件列表将动态生成 -->
+                </div>
+                
+            </div>
+        </main>
+    </div>
+
+    <!-- 文件预览模态框 -->
+    <div class="modal" id="previewModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">文件预览</h3>
+                <button class="modal-close" id="modalClose">×</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 预览内容将动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 拖放区域 -->
+    <div class="drop-zone" id="dropZone">
+        <div class="drop-message">
+            <h2>📁 拖放文件到这里上传</h2>
+            <p>支持多文件上传</p>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" id="renameFile">
+            <span>✏️</span> 重命名
+        </div>
+        <div class="context-menu-item" id="moveFile">
+            <span>📂</span> 移动到
+        </div>
+        <div class="context-menu-item" id="copyFile">
+            <span>📋</span> 复制到
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="deleteFile">
+            <span>🗑️</span> 删除
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="manageTags">
+            <span>🏷️</span> 管理标签
+        </div>
+    </div>
+
+    <!-- 新建文件夹对话框 -->
+    <div class="dialog" id="newFolderDialog">
+        <div class="dialog-content">
+            <div class="dialog-header">新建文件夹</div>
+            <div class="dialog-body">
+                <input type="text" class="dialog-input" id="folderNameInput" placeholder="请输入文件夹名称">
+            </div>
+            <div class="dialog-footer">
+                <button class="btn" id="cancelNewFolder">取消</button>
+                <button class="btn btn-primary" id="confirmNewFolder">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 标签管理对话框 -->
+    <div class="dialog" id="tagDialog">
+        <div class="dialog-content">
+            <div class="dialog-header">管理标签</div>
+            <div class="dialog-body">
+                <div class="tag-input" id="tagInput">
+                    <input type="text" id="tagInputField" placeholder="输入标签后按回车添加">
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn" id="cancelTag">取消</button>
+                <button class="btn btn-primary" id="confirmTag">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件上传输入框 -->
+    <input type="file" class="file-input" id="fileInput" multiple accept=".txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.pdf">
+
+    <!-- 提示消息 -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+class FileManager {
+  constructor() {
+    this.currentFolder = 'all';
+    this.selectedFiles = new Set();
+    this.files = [];          // 当前列表
+    this.folders = [];        // 所有文件夹
+    this.contextTarget = null; // 右键文件对象
+    this.init();
+  }
+
+  init() {
+    this.bindEvents();
+    this.loadFolders();
+    this.loadFiles();
+  }
+
+  bindEvents() {
+    // 侧边栏
+    document.getElementById('toggleSidebar').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    });
+    // 上传
+    document.getElementById('uploadBtn').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      this.handleUpload(e.target.files);
+    });
+    // 新建文件夹
+    document.getElementById('newFolderBtn').addEventListener('click', () => {
+      this.showNewFolderDialog();
+    });
+    // 刷新
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      this.loadFiles();
+      this.showToast('已刷新', 'success');
+    });
+    // 搜索
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      this.searchFiles(e.target.value);
+    });
+    // 模态框关闭
+    document.getElementById('modalClose').addEventListener('click', () => this.closeModal());
+    document.getElementById('previewModal').addEventListener('click', (e) => {
+      if (e.target.id === 'previewModal') this.closeModal();
+    });
+    // 右键菜单
+    document.addEventListener('click', () => this.hideContextMenu());
+    // 键盘
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Delete' && this.selectedFiles.size === 1) {
+        const file = this.files.find(f => f.id === [...this.selectedFiles][0]);
+        if (file) this.showRemoveDialog(file);
+      }
+      if (e.ctrlKey && e.key === 'a') {
+        e.preventDefault();
+        this.selectAll();
+      }
+    });
+  }
+
+  /* ---------- 数据获取 ---------- */
+  async loadFolders() {
+    const res = await fetch('/api/folders').then(r => r.json());
+    this.folders = res.folders;
+    this.renderFolders();
+  }
+  async loadFiles() {
+    const url = this.currentFolder === 'all'
+        ? '/api/files'
+        : `/api/files?folder=${this.currentFolder}`;
+    const [resFiles, resSub] = await Promise.all([
+        fetch(url).then(r => r.json()),
+        this.currentFolder === 'all'
+            ? { folders: [] }                           // 所有文件 不查子级
+            : fetch(`/api/folders/children/${this.currentFolder}`).then(r => r.json())
+    ]);
+
+    this.files = resFiles.files;
+    this.renderFiles();
+    this.renderSubFolders(resSub.folders);              // 🔥渲染子文件夹
+    this.updateFolderCounts();
+}
+renderSubFolders(list) {
+    const bar = document.getElementById('subFolderBar');
+    bar.innerHTML = '';
+    if (!list.length) { bar.style.display = 'none'; return; }
+
+    bar.style.display = 'flex';
+    list.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'sub-folder-card';
+        card.innerHTML = `<span class="ico">📁</span><span>${f.name}</span>`;
+        card.addEventListener('click', () => this.selectFolder(f.id));
+        bar.appendChild(card);
+    });
+}
+
+  /* ---------- 渲染 ---------- */
+  renderFolders() {
+  const box = document.getElementById('folderTree');
+  box.innerHTML = '';
+
+  fetch('/api/folders/tree')
+    .then(r => r.json())
+    .then(({ tree }) => {
+      const root = document.createElement('div');
+      const walk = (nodes, container, depth = 0) => {
+        nodes.forEach(n => {
+          const item = document.createElement('div');
+          item.className = 'folder-item';
+          item.dataset.folderId = n.id;
+          if (String(n.id) === this.currentFolder) item.classList.add('active');
+
+          item.innerHTML = `
+            <span class="tree-arrow">▶</span>
+            <span class="folder-icon">📁</span>
+            <span class="folder-name">${n.name}</span>
+          `;
+
+          const arrow = item.querySelector('.tree-arrow');
+          const subBox = document.createElement('div');
+          subBox.className = 'tree-indent';
+          subBox.style.display = 'none';
+
+          // 折叠
+          if (n.children?.length) {
+            arrow.addEventListener('click', e => {
+              e.stopPropagation();
+              const open = arrow.classList.toggle('open');
+              subBox.style.display = open ? 'block' : 'none';
+            });
+            walk(n.children, subBox, depth + 1);
+          } else arrow.style.visibility = 'hidden';
+
+          // 进入文件夹
+          item.addEventListener('click', () => {
+            this.selectFolder(n.id);
+          });
+
+          // 右键：新建子文件夹
+          item.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            const name = prompt('新建子文件夹名称：');
+            if (name) {
+              fetch('/api/folders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, parentId: n.id })
+              }).then(() => {
+                this.showToast('子文件夹已创建', 'success');
+                this.loadFolders(); // 刷新树
+              });
+            }
+          });
+
+          container.appendChild(item);
+          container.appendChild(subBox);
+        });
+      };
+      walk(tree, root);
+      box.appendChild(root);
+    });
+}
+
+  renderFiles() {
+  const strip = document.getElementById('fileGrid');
+  strip.className = 'file-strip'; // 改用 flex 密铺
+  strip.innerHTML = '';
+
+  if (!this.files.length) {
+    strip.innerHTML = '<div style="width:100%;text-align:center;padding:50px;color:#999">暂无文件</div>';
+    return;
+  }
+
+  this.files.forEach(file => {
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    if (this.selectedFiles.has(file.id)) card.classList.add('selected');
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isImg = ['jpg', 'jpeg', 'png', 'gif'].includes(ext);
+    const isTxt = ['txt', 'md', 'json', 'xml', 'js', 'ts', 'html', 'css'].includes(ext);
+
+    let content = '';
+
+    if (isImg && file.id) {
+      content = `<img src="/api/files/${file.id}/content" alt="${file.name}">`;
+    } else if (isTxt && file.id) {
+      content = `<pre id="txt-${file.id}">加载中…</pre>`;
+      fetch(`/api/files/${file.id}/content`)
+        .then(r => r.text())
+        .then(t => document.getElementById(`txt-${file.id}`).textContent = t);
+    } else {
+      const iconClass = this.fileIconClass(ext);
+      content = `<div class="file-icon ${iconClass}">${this.fileIcon(ext)}</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="file-content">${content}</div>
+      <div class="file-name" style="text-align:center;margin-top:6px;font-size:12px">${file.name}</div>
+      ${file.tags?.length ? `<div class="file-tags">${file.tags.map(t => `<span class="file-tag">${t}</span>`).join('')}</div>` : ''}
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey) this.toggleFile(file.id);
+      else this.selectSingle(file.id);
+    });
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.showContextMenu(e, file);
+    });
+
+    strip.appendChild(card);
+  });
+}
+
+  /* ---------- 业务逻辑 ---------- */
+  selectFolder(id) {
+    this.currentFolder = String(id);
+    this.selectedFiles.clear();
+    this.loadFiles();
+  }
+  toggleFile(id) {
+    this.selectedFiles.has(id) ? this.selectedFiles.delete(id) : this.selectedFiles.add(id);
+    this.renderFiles();
+  }
+  selectSingle(id) {
+    this.selectedFiles.clear();
+    this.selectedFiles.add(id);
+    this.renderFiles();
+  }
+  selectAll() {
+    this.selectedFiles = new Set(this.files.map(f => f.id));
+    this.renderFiles();
+  }
+
+  /* ---------- 右键菜单 ---------- */
+  showContextMenu(e, file) {
+    this.contextTarget = file;
+    const menu = document.getElementById('contextMenu');
+    menu.innerHTML = `
+      <div class="context-menu-item" data-action="prop"><span>ℹ️</span> 属性</div>
+      <div class="context-menu-item" data-action="copy"><span>📋</span> 复制到文件夹</div>
+      <div class="context-menu-item" data-action="remove"><span>📤</span> 从文件夹移除</div>
+      <div class="context-menu-separator"></div>
+      <div class="context-menu-item" data-action="del"><span>🗑️</span> 彻底删除</div>
+    `;
+    menu.style.display = 'block';
+    menu.style.left = e.pageX + 'px';
+    menu.style.top = e.pageY + 'px';
+    menu.querySelectorAll('[data-action]').forEach(item => {
+      item.addEventListener('click', () => {
+        const act = item.dataset.action;
+        if (act === 'prop') this.showPropDialog(file);
+        if (act === 'copy') this.showCopyDialog(file);
+        if (act === 'remove') this.showRemoveDialog(file);
+        if (act === 'del') this.permanentDelete(file);
+        this.hideContextMenu();
+      });
+    });
+  }
+  hideContextMenu() {
+    document.getElementById('contextMenu').style.display = 'none';
+  }
+
+  /* ---------- 属性弹窗 ---------- */
+  showPropDialog(file) {
+    const html = `
+      <div class="dialog active" id="propDialog">
+        <div class="dialog-content" style="max-width:400px">
+          <div class="dialog-header">文件属性</div>
+          <div class="dialog-body">
+            <b>名称：</b>${file.name}<br>
+            <b>大小：</b>${(file.size / 1024).toFixed(2)} KB<br>
+            <b>所在文件夹：</b>
+            ${file.folders?.length ? file.folders.map(f => f.name).join('、') : '<i style="color:#999">未分类</i>'}
+          </div>
+          <div class="dialog-footer">
+            <button class="btn" onclick="this.closest('.dialog').classList.remove('active')">关闭</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+
+  /* ---------- 复制到文件夹 ---------- */
+  showCopyDialog(file) {
+    const opts = this.folders.map(f => `<label><input type="checkbox" value="${f.id}"> ${f.name}</label>`).join('<br>');
+    const html = `
+      <div class="dialog active" id="copyDialog">
+        <div class="dialog-content" style="max-width:400px">
+          <div class="dialog-header">复制到文件夹</div>
+          <div class="dialog-body">${opts}</div>
+          <div class="dialog-footer">
+            <button class="btn" onclick="this.closest('.dialog').remove()">取消</button>
+            <button class="btn btn-primary" onclick="fileManager.doCopy('${file.id}')">确定</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  async doCopy(fileId) {
+    const boxes = Array.from(document.querySelectorAll('#copyDialog input[type=checkbox]:checked')).map(i => Number(i.value));
+    if (!boxes.length) return this.showToast('未选择文件夹', 'error');
+    const res = await fetch(`/api/files/${fileId}/copy-to-folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderIds: boxes })
+    }).then(r => r.json());
+    if (res.ok) {
+      this.showToast('复制成功', 'success');
+      this.loadFiles();
+    } else this.showToast('复制失败', 'error');
+    document.getElementById('copyDialog').remove();
+  }
+
+  /* ---------- 从文件夹移除 ---------- */
+  showRemoveDialog(file) {
+    if (!file.folders?.length) return this.showToast('文件未归类，无需移除', 'info');
+    const opts = file.folders.map(f => `<label><input type="checkbox" value="${f.id}"> ${f.name}</label>`).join('<br>');
+    const html = `
+      <div class="dialog active" id="removeDialog">
+        <div class="dialog-content" style="max-width:400px">
+          <div class="dialog-header">从文件夹移除</div>
+          <div class="dialog-body">${opts}</div>
+          <div class="dialog-footer">
+            <button class="btn" onclick="this.closest('.dialog').remove()">取消</button>
+            <button class="btn btn-primary" onclick="fileManager.doRemove('${file.id}')">确定</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  async doRemove(fileId) {
+    const boxes = Array.from(document.querySelectorAll('#removeDialog input[type=checkbox]:checked')).map(i => Number(i.value));
+    if (!boxes.length) return this.showToast('未选择文件夹', 'error');
+    const res = await fetch(`/api/files/${fileId}/remove-from-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderIds: boxes })
+    }).then(r => r.json());
+    if (res.ok) {
+      this.showToast('移除成功', 'success');
+      this.loadFiles();
+    } else this.showToast('移除失败', 'error');
+    document.getElementById('removeDialog').remove();
+  }
+
+  /* ---------- 彻底删除 ---------- */
+  async permanentDelete(file) {
+    if (!confirm(`彻底删除文件「${file.name}」？\n（实体文件与所有文件夹关联将被清除）`)) return;
+    const res = await fetch(`/api/files/${file.id}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.ok) {
+      this.showToast('已彻底删除', 'success');
+      this.selectedFiles.delete(file.id);
+      this.loadFiles();
+    } else this.showToast('删除失败', 'error');
+  }
+
+  /* ---------- 上传 ---------- */
+  async handleUpload(files) {
+  const fd = new FormData();
+  Array.from(files).forEach(f => fd.append('files', f));
+  // 当前不是「所有文件」就自动绑定
+  if (this.currentFolder !== 'all') fd.append('folders[]', this.currentFolder);
+  const res = await fetch('/api/files/upload', { method: 'POST', body: fd }).then(r => r.json());
+  this.showToast(`已上传 ${res.count} 个文件到当前文件夹`, 'success');
+  this.loadFiles();
+}
+
+  /* ---------- 搜索 ---------- */
+  searchFiles(q) {
+    if (!q) return this.renderFiles();
+    const low = q.toLowerCase();
+    const filtered = this.files.filter(f =>
+      f.name.toLowerCase().includes(low) ||
+      f.tags?.some(t => t.toLowerCase().includes(low))
+    );
+    this.files = filtered;
+    this.renderFiles();
+  }
+
+  updateFolderCounts() {
+    // 简单刷新侧边栏即可
+    this.renderFolders();
+  }
+
+  /* ---------- 小工具 ---------- */
+  fileIconClass(ext) {
+    const map = { txt: 'txt', doc: 'doc', docx: 'doc', pdf: 'pdf', zip: 'zip', rar: 'zip' };
+    return map[ext] || 'default';
+  }
+  fileIcon(ext) {
+    const map = { txt: '📄', doc: '📝', docx: '📝', pdf: '📕', zip: '📦', rar: '📦' };
+    return map[ext] || '📎';
+  }
+  showToast(msg, type = 'info') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+  closeModal() {
+    document.getElementById('previewModal').style.display = 'none';
+  }
+  showNewFolderDialog() {
+  const name = prompt('新建文件夹名称：');
+  if (!name) return;
+  const parentId = this.currentFolder === 'all' ? null : Number(this.currentFolder);
+  fetch('/api/folders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parentId })
+  }).then(r => r.json()).then(() => {
+    this.showToast('文件夹已创建', 'success');
+    this.loadFolders(); // 重新渲染树
+  });
+}
+}
+
+// 启动
+const fileManager = new FileManager();
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+应用位置C:\Windows\System32\consent.exe
+
+
+software/Microsoft/Windows.NT/CurrentVersion/UAC/COMAutoApprovalList
+Apps/Default/WindowsUAC
+audioses.dll
