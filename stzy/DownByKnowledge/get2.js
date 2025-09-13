@@ -78,9 +78,11 @@ var LpaperType=[["22","1","2"],["3","4","5"],["6","7","8"],["12","13","14"],["15
 var LprovinceCode=["-1","110000","120000","130000","140000","150000","210000","220000","230000","310000","320000","330000","340000","350000","360000","370000","410000","420000","430000","440000","450000","460000","500000","510000","520000","530000","540000","610000","620000","630000","640000","650000",""]
 var LshowQuestionTypeCode=["1","2","39","187","4","5","295","188",""];
 var LdiffcultCode=["1","2","3","4","5",""];
+var Lyear=["2025","2024","2023","2022","2021","2020","2019","2018","2017","-1",""];
 async function getter(treeid) {
     try {
         var gl = [];
+        for(var i0=0;i0<Lyear.length;i0++){
         for(var i1=0;i1<LprovinceCode.length;i1++){
         for(var i5=0;i5<LdiffcultCode.length;i5++){
         for(var i7=0;i7<LshowQuestionTypeCode.length;i7++){
@@ -88,9 +90,10 @@ async function getter(treeid) {
             LpaperType[i8].forEach(PapperType=>{
                 gl.push(
                     new Promise((resolve, reject) => {
-                        process.stdout.write(`\r${i1+1}/33 ${i7+1}/9 ${i5+1}/6 ${i8+1}/6                            `);
+                        process.stdout.write(`\r${i0+1}/11 ${i1+1}/33 ${i5+1}/6 ${i7+1}/9 ${i8+1}/6                            `);
                         got(1, 
                             {
+                                yearCode:Lyear[i0],
                                 provinceCode:LprovinceCode[i1],
                                 paperType:PapperType,
                                 showQuestionTypeCode:LshowQuestionTypeCode[i7],
@@ -105,7 +108,7 @@ async function getter(treeid) {
                                     else console.log("✅ 写入完成");
                                 });
                                 console.log(r);
-                                errb.push([treeid,[i1,i5,i7,i8]]);
+                                errb.push([treeid,[i0,i1,i5,i7,i8]]);
                             }
                             r.data.list.forEach((e) => {
                                 fn(e);
@@ -117,7 +120,7 @@ async function getter(treeid) {
             })
             await Promise.all(gl);
             gl = [];
-        }}}}
+        }}}}}
     } catch (err) {
         console.log(err);
         errb.push([treeid]);
@@ -125,7 +128,7 @@ async function getter(treeid) {
 }
 var b = JSON.parse(String(fs.readFileSync("k.json")));
 
-async function bian(arr) {console.log(arr)
+async function bian(arr) {
     for (var i = 0; i < arr.length; i++) {
         await getter(arr[i]);
         console.log(`\n[${i + 1}/${arr.length}]`);
@@ -142,4 +145,4 @@ async function bian(arr) {console.log(arr)
         else console.log("✅ 写入完成");
     });
 }
-bian(b.slice(1,2));
+bian(b.slice(0,1));
