@@ -4,930 +4,316 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能文件管理系统</title>
+    <script src="masonry.js"></script>
+    <script src="femd.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #e2e8f0;
-            overflow: hidden;
-            height: 100vh;
-        }
-
-        .container {
-            display: flex;
-            height: 100vh;
-            backdrop-filter: blur(10px);
-        }
-
-        /* 左侧边栏 */
-        .sidebar {
-            width: 250px;
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(10px);
-            border-right: 1px solid rgba(94, 234, 212, 0.1);
-            display: flex;
-            flex-direction: column;
-            transition: all 0.3s ease;
-        }
-
-        .sidebar.collapsed {
-            width: 60px;
-        }
-
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sidebar-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #5eead4;
-            transition: opacity 0.3s;
-        }
-
-        .sidebar.collapsed .sidebar-title {
-            opacity: 0;
-        }
-
-        .toggle-sidebar {
-            background: none;
-            border: none;
-            color: #5eead4;
-            cursor: pointer;
-            font-size: 20px;
-            transition: transform 0.3s;
-        }
-
-        .toggle-sidebar:hover {
-            transform: rotate(90deg);
-        }
-
-        .folder-tree {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-        }
-
-        .folder-item {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-radius: 8px;
-            margin-bottom: 5px;
-            display: flex;
-            align-items: center;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid transparent;
-        }
-
-        .folder-item::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 3px;
-            background: #5eead4;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-        }
-
-        .folder-item:hover {
-            background: rgba(94, 234, 212, 0.1);
-            border-color: rgba(94, 234, 212, 0.2);
-        }
-
-        .folder-item.active {
-            background: rgba(94, 234, 212, 0.15);
-            border-color: rgba(94, 234, 212, 0.3);
-        }
-
-        .folder-item.active::before {
-            transform: translateX(0);
-        }
-
-        .folder-icon {
-            margin-right: 10px;
-            font-size: 16px;
-            transition: transform 0.3s;
-        }
-
-        .folder-item:hover .folder-icon {
-            transform: scale(1.1);
-        }
-
-        .folder-name {
-            flex: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            transition: opacity 0.3s;
-        }
-
-        .sidebar.collapsed .folder-name {
-            opacity: 0;
-        }
-
-        .file-count {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-left: 5px;
-            transition: opacity 0.3s;
-        }
-
-        .sidebar.collapsed .file-count {
-            opacity: 0;
-        }
-
-        /* 主内容区 */
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: rgba(15, 23, 42, 0.5);
-            backdrop-filter: blur(10px);
-            margin: 20px;
-            border-radius: 16px;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            box-shadow: 0 8px 32px rgba(2, 8, 20, 0.4);
-            overflow: hidden;
-        }
-
-        /* 顶部工具栏 */
-        .toolbar {
-            background: rgba(15, 23, 42, 0.7);
-            padding: 15px 20px;
-            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            backdrop-filter: blur(10px);
-        }
-
-        .toolbar-left {
-            display: flex;
-            gap: 10px;
-        }
-
-        .toolbar-right {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            background: rgba(30, 41, 59, 0.7);
-            color: #e2e8f0;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            backdrop-filter: blur(5px);
-        }
-
-        .btn:hover {
-            background: rgba(56, 189, 248, 0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(2, 8, 20, 0.3);
-        }
-
-        .btn-primary {
-            background: rgba(56, 189, 248, 0.3);
-            color: white;
-            border: 1px solid rgba(56, 189, 248, 0.3);
-        }
-
-        .btn-primary:hover {
-            background: rgba(56, 189, 248, 0.4);
-        }
-
-        .search-box {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .search-input {
-            padding: 8px 35px 8px 15px;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            border-radius: 20px;
-            width: 250px;
-            transition: all 0.3s ease;
-            background: rgba(15, 23, 42, 0.5);
-            color: #e2e8f0;
-            backdrop-filter: blur(5px);
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: #5eead4;
-            width: 300px;
-            box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
-        }
-
-        .search-icon {
-            position: absolute;
-            right: 12px;
-            color: #94a3b8;
-        }
-
-        /* 文件视图 */
-        .file-view {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            background: rgba(15, 23, 42, 0.3);
-        }
-
-        .file-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 15px;
-        }
-
-        .file-item {
-            background: rgba(15, 23, 42, 0.5);
-            border-radius: 12px;
-            padding: 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            backdrop-filter: blur(5px);
-            overflow: hidden;
-        }
-
-        .file-item::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #5eead4, #38bdf8);
-            transform: translateY(-100%);
-            transition: transform 0.3s ease;
-        }
-
-        .file-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(2, 8, 20, 0.3);
-            border-color: rgba(94, 234, 212, 0.3);
-        }
-
-        .file-item:hover::before {
-            transform: translateY(0);
-        }
-
-        .file-item.selected {
-            border-color: #5eead4;
-            background: rgba(94, 234, 212, 0.1);
-            box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
-        }
-
-        .file-item.dragging {
-            opacity: 0.5;
-            transform: rotate(5deg);
-        }
-
-        .file-preview {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 30px;
-            position: relative;
-            transition: transform 0.3s;
-        }
-
-        .file-item:hover .file-preview {
-            transform: scale(1.1);
-        }
-
-        .file-preview img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: cover;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-
-        .file-name {
-            text-align: center;
-            font-size: 12px;
-            word-break: break-word;
-            color: #e2e8f0;
-            transition: all 0.3s;
-        }
-
-        .file-item:hover .file-name {
-            color: #5eead4;
-        }
-
-        .file-name.editing {
-            background: rgba(15, 23, 42, 0.7);
-            border: 1px solid #5eead4;
-            padding: 2px 5px;
-            border-radius: 4px;
-            outline: none;
-            width: 100%;
-            color: #e2e8f0;
-            box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.2);
-        }
-
-        .file-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 3px;
-            margin-top: 5px;
-            justify-content: center;
-        }
-
-        .file-tag {
-            background: rgba(94, 234, 212, 0.15);
-            color: #5eead4;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-size: 10px;
-            border: 1px solid rgba(94, 234, 212, 0.2);
-        }
-
-        /* 文件预览模态框 */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(2, 8, 20, 0.9);
-            z-index: 1000;
-            animation: fadeIn 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .modal-content {
-            position: relative;
-            width: 90%;
-            height: 90%;
-            margin: 5% auto;
-            background: rgba(15, 23, 42, 0.8);
-            border-radius: 16px;
-            overflow: hidden;
-            animation: slideIn 0.3s ease;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            box-shadow: 0 25px 50px rgba(2, 8, 20, 0.5);
-            backdrop-filter: blur(12px);
-        }
-
-        @keyframes slideIn {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .modal-header {
-            padding: 20px;
-            background: rgba(15, 23, 42, 0.9);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #5eead4;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #94a3b8;
-            transition: all 0.3s;
-        }
-
-        .modal-close:hover {
-            color: #5eead4;
-            transform: rotate(90deg);
-        }
-
-        .modal-body {
-            padding: 20px;
-            height: calc(100% - 70px);
-            overflow: auto;
-            background: rgba(15, 23, 42, 0.6);
-        }
-
-        .text-viewer {
-            white-space: pre-wrap;
-            font-family: 'Consolas', 'Monaco', monospace;
-            line-height: 1.6;
-            color: #e2e8f0;
-        }
-
-        .image-viewer {
-            text-align: center;
-        }
-
-        .image-viewer img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-
-        /* 拖放区域 */
-        .drop-zone {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(2, 8, 20, 0.9);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            backdrop-filter: blur(10px);
-        }
-
-        .drop-zone.active {
-            display: flex;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .drop-message {
-            font-size: 24px;
-            color: #5eead4;
-            text-align: center;
-            padding: 40px;
-            border: 3px dashed #5eead4;
-            border-radius: 20px;
-            background: rgba(15, 23, 42, 0.7);
-            box-shadow: 0 0 40px rgba(94, 234, 212, 0.3);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.4); }
-            70% { box-shadow: 0 0 0 20px rgba(94, 234, 212, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0); }
-        }
-
-        /* 右键菜单 */
-        .context-menu {
-            position: fixed;
-            background: rgba(15, 23, 42, 0.9);
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(2, 8, 20, 0.4);
-            padding: 8px 0;
-            display: none;
-            z-index: 1500;
-            min-width: 180px;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            backdrop-filter: blur(10px);
-            overflow: hidden;
-        }
-
-        .context-menu-item {
-            padding: 10px 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: all 0.3s ease;
-            color: #e2e8f0;
-            position: relative;
-        }
-
-        .context-menu-item::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 3px;
-            background: #5eead4;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-        }
-
-        .context-menu-item:hover {
-            background: rgba(94, 234, 212, 0.1);
-            padding-left: 25px;
-        }
-
-        .context-menu-item:hover::before {
-            transform: translateX(0);
-        }
-
-        .context-menu-separator {
-            height: 1px;
-            background: rgba(94, 234, 212, 0.1);
-            margin: 5px 0;
-        }
-
-        /* 加载动画 */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(15, 23, 42, 0.3);
-            border-top: 3px solid #5eead4;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* 滚动条样式 */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.3);
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(94, 234, 212, 0.3);
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(94, 234, 212, 0.5);
-        }
-
-        /* 响应式设计 */
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 200px;
-            }
-            
-            .file-grid {
-                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            }
-            
-            .search-input {
-                width: 150px;
-            }
-            
-            .search-input:focus {
-                width: 180px;
-            }
-        }
-
-        /* 标签输入 */
-        .tag-input {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            padding: 5px;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            border-radius: 8px;
-            min-height: 35px;
-            align-items: center;
-            background: rgba(15, 23, 42, 0.5);
-            backdrop-filter: blur(5px);
-        }
-
-        .tag {
-            background: rgba(56, 189, 248, 0.2);
-            color: #38bdf8;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            border: 1px solid rgba(56, 189, 248, 0.2);
-        }
-
-        .tag-remove {
-            cursor: pointer;
-            font-weight: bold;
-            color: #5eead4;
-            transition: all 0.2s;
-        }
-
-        .tag-remove:hover {
-            color: #f87171;
-            transform: scale(1.2);
-        }
-
-        .tag-input input {
-            border: none;
-            outline: none;
-            flex: 1;
-            min-width: 100px;
-            padding: 3px;
-            background: transparent;
-            color: #e2e8f0;
-        }
-
-        /* 新建文件夹对话框 */
-        .dialog {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(2, 8, 20, 0.9);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-        }
-
-        .dialog.active {
-            display: flex;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .dialog-content {
-            background: rgba(15, 23, 42, 0.9);
-            border-radius: 16px;
-            padding: 30px;
-            min-width: 400px;
-            box-shadow: 0 25px 50px rgba(2, 8, 20, 0.5);
-            animation: slideIn 0.3s ease;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            backdrop-filter: blur(12px);
-        }
-
-        .dialog-header {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #5eead4;
-        }
-
-        .dialog-body {
-            margin-bottom: 20px;
-        }
-
-        .dialog-input {
-            width: 100%;
-            padding: 10px 15px;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            border-radius: 8px;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            background: rgba(15, 23, 42, 0.5);
-            color: #e2e8f0;
-        }
-
-        .dialog-input:focus {
-            outline: none;
-            border-color: #5eead4;
-            box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
-        }
-
-        .dialog-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        /* 文件类型图标 */
-        .file-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            color: white;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            transition: all 0.3s ease;
-        }
-
-        .file-item:hover .file-icon {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-        }
-
-        .file-icon.txt { background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%); }
-        .file-icon.doc, .file-icon.docx { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
-        .file-icon.jpg, .file-icon.jpeg, .file-icon.png, .file-icon.gif { 
-            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-        }
-        .file-icon.pdf { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); }
-        .file-icon.zip, .file-icon.rar { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
-        .file-icon.default { background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); }
-
-        .file-icon::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 100%);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .file-item:hover .file-icon::after {
-            opacity: 1;
-        }
-
-        /* 文件选择框 */
-        .file-input {
-            display: none;
-        }
-
-        /* 提示消息 */
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.9);
-            color: #5eead4;
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(2, 8, 20, 0.4);
-            display: none;
-            align-items: center;
-            gap: 10px;
-            z-index: 3000;
-            border: 1px solid rgba(94, 234, 212, 0.1);
-            backdrop-filter: blur(10px);
-        }
-
-        .toast.show {
-            display: flex;
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { transform: translate(-50%, 100%); }
-            to { transform: translate(-50%, 0); }
-        }
-
-        .toast.error {
-            color: #f87171;
-            border: 1px solid rgba(248, 113, 113, 0.2);
-        }
-
-        .toast.success {
-            color: #34d399;
-            border: 1px solid rgba(52, 211, 153, 0.2);
-        }
-        /* 文件夹视图直接展示原图/文本 */
-.folder-view-img {
-    max-width: 100%;
-    max-height: 60vh;
-    object-fit: contain;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+/* 基础变量与重置 */
+#fileView{
+  overflow: auto;
 }
-.folder-view-text {
-    background: #f6f8fa;
-    padding: 15px;
-    border-radius: 8px;
-    font-family: Consolas, Monaco, monospace;
-    font-size: 13px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 60vh;
-    overflow: auto;
+:root {
+    --bg: #0f172a;
+    --card: rgba(15, 23, 42, .6);
+    --border: rgba(94, 234, 212, .1);
+    --accent: #5eead4;
+    --radius: 10px;
+    --gap: 10px;
 }
-/* 密铺文件容器 */
-.file-strip {
-    display: flex;
-    flex-wrap: wrap;
-    align-content: flex-start;
-    gap: 10px;
-    padding: 20px;
+* {
+    box-sizing: border-box;
 }
-
-/* 单个卡片：宽度弹性，高度随内容 */
-.file-card {
-    position: relative;
-    background: rgba(15, 23, 42, 0.5);
-    border: 1px solid rgba(94, 234, 212, 0.1);
-    border-radius: 12px;
-    padding: 10px;
-    cursor: pointer;
-    transition: transform 0.2s;
-    /* 宽度区间 */
-    min-width: 120px;
-    max-width: 360px;
-    width: auto;
-}
-
-.file-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(2, 8, 20, 0.4);
-}
-
-.file-card.selected {
-    border-color: #5eead4;
-    box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
-}
-
-/* 图片：原图比例，最大 240px 宽 */
-.file-card img {
-    display: block;
-    max-width: 240px;
-    width: auto;
-    height: auto;
-    max-height: 60vh;
-    object-fit: contain;
-    border-radius: 8px;
-}
-
-/* 文本：自动撑开 */
-.file-card pre {
+body {
     margin: 0;
-    padding: 10px;
-    font-family: Consolas, Monaco, monospace;
-    font-size: 13px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 60vh;
-    overflow: auto;
-    min-width: 120px;
-    max-width: 360px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, var(--bg) 0%, #1e293b 100%);
+    color: #e2e8f0;
+    height: 100vh;
+    overflow: hidden;
 }
-.tree-indent  { margin-left: 20px; }
-.tree-arrow  { cursor: pointer; user-select: none; margin-right: 4px; transition: transform .2s; }
-.tree-arrow.open { transform: rotate(90deg); }
-/* 树形折叠 */
-.tree-indent  { margin-left: 20px; }
-.tree-arrow   { cursor: pointer; user-select: none; margin-right: 4px; transition: transform .2s; }
-.tree-arrow.open { transform: rotate(90deg); }
-.folder-item.active > .folder-name { color: #5eead4; font-weight: 600; }
-/* ===== 子文件夹栏 ===== */
+
+/* 布局骨架 */
+.container {
+    display: flex;
+    height: 100vh;
+}
+.sidebar {
+    width: 250px;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: width .3s;
+}
+.sidebar.collapsed {
+    width: 60px;
+}
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin: 20px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+/* 顶部工具栏 */
+.toolbar {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(56, 189, 248, .2);
+    color: #e2e8f0;
+    cursor: pointer;
+    transition: background .2s;
+}
+.btn:hover {
+    background: rgba(56, 189, 248, .3);
+}
+
+/* 文件夹树（折叠） */
+.folder-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+.folder-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    transition: background .2s;
+}
+.folder-item:hover {
+    background: rgba(94, 234, 212, .1);
+}
+.folder-item.active {
+    background: rgba(94, 234, 212, .15);
+}
+.tree-arrow {
+    margin-right: 4px;
+    transition: transform .2s;
+}
+.tree-arrow.open {
+    transform: rotate(90deg);
+}
+.tree-indent {
+    margin-left: 20px;
+}
+
+/* 子文件夹栏 */
 .sub-folder-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: var(--gap);
     padding: 12px 20px;
-    background: rgba(15, 23, 42, 0.4);
-    border-bottom: 1px solid rgba(94, 234, 212, 0.1);
-    align-items: center;
+    border-bottom: 1px solid var(--border);
 }
 .sub-folder-card {
-    background: rgba(30, 41, 59, 0.7);
-    border: 1px solid rgba(94, 234, 212, 0.15);
-    border-radius: 10px;
-    padding: 8px 14px;
+    background: rgba(30, 41, 59, .7);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 12px;
     cursor: pointer;
-    transition: all 0.2s;
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 14px;
+    transition: background .2s, transform .2s;
 }
 .sub-folder-card:hover {
-    background: rgba(56, 189, 248, 0.2);
+    background: rgba(56, 189, 248, .2);
     transform: translateY(-2px);
 }
-.sub-folder-card .ico {
-    font-size: 18px;
+
+
+.file-strip {
+    padding: 20px;
 }
+@media (max-width: 1200px) {
+    .file-strip {
+        column-count: 4;
+    }
+}
+@media (max-width: 900px) {
+    .file-strip {
+        column-count: 3;
+    }
+}
+@media (max-width: 600px) {
+    .file-strip {
+        column-count: 2;
+    }
+}
+@media (max-width: 400px) {
+    .file-strip {
+        column-count: 1;
+    }
+}
+
+.file-card {
+    width: fit-content;         /* 固定宽（可媒体查询多档） */
+    max-width: 512px;
+    min-width: 128px;
+    margin-bottom: 10px;  
+    background: rgba(15,23,42,.6);
+    border: 1px solid rgba(94,234,212,.1);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    transition: transform .2s, box-shadow .2s;
+}
+.file-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(2, 8, 20, .4);
+}
+.file-card.selected {
+    border-color: #5eead4;
+    box-shadow: 0 0 0 2px #5eead4;
+}
+
+/* 图片：只显示文件名 */
+.file-card img {
+    display: none;
+}
+.file-name {
+    font-size: 13px;
+    word-break: break-word;
+    margin-top: 6px;
+    text-align: center;
+}
+
+/* 文本：保持原样，自动撑开 */
+.file-card pre {
+    margin: 0;
+    padding: 8px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 60vh;
+    overflow: auto;
+}
+
+/* 图标卡片（非图片/文本） */
+.file-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #fff;
+    margin: 0 auto 8px;
+}
+.file-icon.txt { background: linear-gradient(135deg, #38bdf8, #0ea5e9); }
+.file-icon.doc, .file-icon.docx { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.file-icon.jpg, .file-icon.jpeg, .file-icon.png, .file-icon.gif { 
+    background: linear-gradient(135deg, #34d399, #10b981);
+}
+.file-icon.pdf { background: linear-gradient(135deg, #f87171, #ef4444); }
+.file-icon.zip, .file-icon.rar { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+.file-icon.default { background: linear-gradient(135deg, #94a3b8, #64748b); }
+
+/* 其他元素 */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 12px 24px;
+    border-radius: 8px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    z-index: 3000;
+}
+.toast.show {
+    display: flex;
+}
+.toast.error { color: #f87171; }
+.toast.success { color: #34d399; }
+
+/* 右键菜单 */
+.context-menu {
+    position: fixed;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 0;
+    display: none;
+    z-index: 1500;
+    min-width: 160px;
+}
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+.context-menu-item:hover {
+    background: rgba(94, 234, 212, .1);
+}
+.context-menu-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+/* ---- 遮罩+居中 ---- */
+.dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,8,20,.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.dialog.active { display: flex; }
+
+/* ---- 内容卡片 ---- */
+.dialog-content {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 90%;
+  max-width: 400px;
+  padding: 0;
+  color: #e2e8f0;
+}
+
+.dialog-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.dialog-body {
+  padding: 16px;
+  line-height: 1.6;
+}
+
+.dialog-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+}
+.dialog-footer .btn { margin-left: 8px; }
     </style>
 </head>
 <body>
@@ -935,8 +321,6 @@
         <!-- 左侧边栏 -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h2 class="sidebar-title">文件夹</h2>
-                <button class="toggle-sidebar" id="toggleSidebar">☰</button>
             </div>
             <div class="folder-tree" id="folderTree">
                 <!-- 文件夹列表将动态生成 -->
@@ -1084,10 +468,6 @@ class FileManager {
   }
 
   bindEvents() {
-    // 侧边栏
-    document.getElementById('toggleSidebar').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('collapsed');
-    });
     // 上传
     document.getElementById('uploadBtn').addEventListener('click', () => {
       document.getElementById('fileInput').click();
@@ -1148,7 +528,7 @@ class FileManager {
     this.files = resFiles.files;
     this.renderFiles();
     this.renderSubFolders(resSub.folders);              // 🔥渲染子文件夹
-    this.updateFolderCounts();
+    //this.updateFolderCounts();
 }
 renderSubFolders(list) {
     const bar = document.getElementById('subFolderBar');
@@ -1182,7 +562,7 @@ renderSubFolders(list) {
           if (String(n.id) === this.currentFolder) item.classList.add('active');
 
           item.innerHTML = `
-            <span class="tree-arrow">▶</span>
+            <span class="tree-arrow">></span>
             <span class="folder-icon">📁</span>
             <span class="folder-name">${n.name}</span>
           `;
@@ -1234,29 +614,40 @@ renderSubFolders(list) {
 
   renderFiles() {
   const strip = document.getElementById('fileGrid');
-  strip.className = 'file-strip'; // 改用 flex 密铺
-  strip.innerHTML = '';
-
-  if (!this.files.length) {
-    strip.innerHTML = '<div style="width:100%;text-align:center;padding:50px;color:#999">暂无文件</div>';
-    return;
-  }
+  // ❌ 删掉 strip.innerHTML = '';
 
   this.files.forEach(file => {
-    const card = document.createElement('div');
-    card.className = 'file-card';
-    if (this.selectedFiles.has(file.id)) card.classList.add('selected');
+    const cardId = `file-${file.id}`;
+    let card = document.getElementById(cardId);
 
+    // 第一次：创建节点
+    if (!card) {
+      card = document.createElement('div');
+      card.id = cardId;
+      card.className = 'file-card';
+      card.innerHTML = `
+        <div class="file-content"></div>
+        <div class="file-name"></div>
+      `;
+      strip.appendChild(card);
+    }
+
+    // 仅更新内容和选中状态
     const ext = file.name.split('.').pop().toLowerCase();
     const isImg = ['jpg', 'jpeg', 'png', 'gif'].includes(ext);
-    const isTxt = ['txt', 'md', 'json', 'xml', 'js', 'ts', 'html', 'css'].includes(ext);
+    const ismd= ext=='md';
+    const isTxt = ['txt', 'json', 'xml', 'js', 'ts', 'html', 'css'].includes(ext);
 
     let content = '';
-
-    if (isImg && file.id) {
-      content = `<img src="/api/files/${file.id}/content" alt="${file.name}">`;
-    } else if (isTxt && file.id) {
-      content = `<pre id="txt-${file.id}">加载中…</pre>`;
+    if (isImg) {
+      content = '<div class="file-icon img">🖼️</div>';
+    } else if(ismd){
+      content = `<div id="md-${file.id}" style="max-height:60vh;overflow:auto;">加载中…</div>`;
+      fetch(`/api/files/${file.id}/content`)
+        .then(r => r.text())
+        .then(t => {new Femd(t.split('\n')).toDOM().mount(`#md-${file.id}`)});
+    }else if (isTxt && file.id) {
+      content = `<pre id="txt-${file.id}" style="max-height:60vh;overflow:auto;">加载中…</pre>`;
       fetch(`/api/files/${file.id}/content`)
         .then(r => r.text())
         .then(t => document.getElementById(`txt-${file.id}`).textContent = t);
@@ -1265,25 +656,58 @@ renderSubFolders(list) {
       content = `<div class="file-icon ${iconClass}">${this.fileIcon(ext)}</div>`;
     }
 
-    card.innerHTML = `
-      <div class="file-content">${content}</div>
-      <div class="file-name" style="text-align:center;margin-top:6px;font-size:12px">${file.name}</div>
-      ${file.tags?.length ? `<div class="file-tags">${file.tags.map(t => `<span class="file-tag">${t}</span>`).join('')}</div>` : ''}
-    `;
-
-    card.addEventListener('click', (e) => {
-      if (e.ctrlKey || e.metaKey) this.toggleFile(file.id);
-      else this.selectSingle(file.id);
-    });
-    card.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      this.showContextMenu(e, file);
-    });
-
-    strip.appendChild(card);
+    card.querySelector('.file-content').innerHTML = content;
+    card.querySelector('.file-name').textContent = file.name;
+    
+// 在你现有的 requestAnimationFrame 外层加个 setTimeout
+setTimeout(() => {
+  requestAnimationFrame(() => {
+    const naturalW = card.scrollWidth;
+    const targetW = Math.ceil(naturalW / 64) * 64;
+    card.style.width = targetW + 'px';
+    console.log(card.scrollWidth);
+    
+    // 可选：重新布局Masonry
+    const strip = document.getElementById('fileGrid');
+    strip._masonry?.layout();
   });
-}
+}, 50);
 
+    // 只切换选中样式
+    card.classList.toggle('selected', this.selectedFiles.has(file.id));
+
+    // 绑定事件（只绑一次）
+    if (!card.dataset.clicked) {
+      card.dataset.clicked = '1';
+      card.addEventListener('click', (e) => {
+        if (e.ctrlKey || e.metaKey) this.toggleFile(file.id);
+        else this.selectSingle(file.id);
+      });
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.showContextMenu(e, file);
+      });
+    }
+  });
+
+  // 所有卡片已插入 DOM → 等浏览器布局完成 → 再初始化
+requestAnimationFrame(() => {
+  if (!strip._masonry) {
+    strip._masonry = new Masonry(strip, {
+      itemSelector: '.file-card',
+      columnWidth: 64,           // 最小列宽
+      gutter: 10,                 // 列间距
+      fitWidth: true,             // 居中
+      horizontalOrder: false      // 允许补空
+    });
+  } else {
+    strip._masonry.reloadItems();
+    strip._masonry.layout();
+  }
+});
+
+}
+  
   /* ---------- 业务逻辑 ---------- */
   selectFolder(id) {
     this.currentFolder = String(id);
@@ -1291,13 +715,18 @@ renderSubFolders(list) {
     this.loadFiles();
   }
   toggleFile(id) {
-    this.selectedFiles.has(id) ? this.selectedFiles.delete(id) : this.selectedFiles.add(id);
-    this.renderFiles();
-  }
+  this.selectedFiles.has(id) ? this.selectedFiles.delete(id) : this.selectedFiles.add(id);
+  // ❌ 删掉 this.renderFiles();
+  document.getElementById(`file-${id}`)?.classList.toggle('selected', this.selectedFiles.has(id));
+}
   selectSingle(id) {
-    this.selectedFiles.clear();
-    this.selectedFiles.add(id);
-    this.renderFiles();
+    this.selectedFiles.forEach(oldId =>
+    document.getElementById(`file-${oldId}`)?.classList.remove('selected')
+  );
+  this.selectedFiles.clear();
+  this.selectedFiles.add(id);
+  // ❌ 删掉 this.renderFiles();
+  document.getElementById(`file-${id}`)?.classList.add('selected');
   }
   selectAll() {
     this.selectedFiles = new Set(this.files.map(f => f.id));
@@ -1442,16 +871,23 @@ renderSubFolders(list) {
 }
 
   /* ---------- 搜索 ---------- */
-  searchFiles(q) {
-    if (!q) return this.renderFiles();
-    const low = q.toLowerCase();
-    const filtered = this.files.filter(f =>
-      f.name.toLowerCase().includes(low) ||
-      f.tags?.some(t => t.toLowerCase().includes(low))
-    );
-    this.files = filtered;
-    this.renderFiles();
-  }
+  searchFiles(q)  {
+  const low = (q || '').toLowerCase();
+  // 1. 先全部藏起来
+  document.querySelectorAll('#fileGrid .file-card').forEach(card => {
+    card.style.display = 'none';
+  });
+  // 2. 把匹配的露出来
+  this.files.forEach(f => {
+    if (f.name.toLowerCase().includes(low)) {
+      const card = document.getElementById(`file-${f.id}`);
+      if (card) card.style.display = '';   // 恢复显示
+    }
+  });
+  // 3. 通知 Masonry 重新布局
+  const strip = document.getElementById('fileGrid');
+  strip._masonry?.layout();
+}
 
   updateFolderCounts() {
     // 简单刷新侧边栏即可
@@ -1490,7 +926,10 @@ renderSubFolders(list) {
   });
 }
 }
-
+window.addEventListener('resize', () => {
+  const strip = document.getElementById('fileGrid');
+  strip._masonry?.layout();
+});
 // 启动
 const fileManager = new FileManager();
     </script>
