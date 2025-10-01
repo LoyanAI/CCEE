@@ -6,10 +6,13 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs-extra');
 const crypto = require('crypto');
-
+const femd = require('femd');
 const app = express();
 const PORT = 3000;
-
+const Femdconfig={
+  block:[[/<mermaid>(([\S\s]+?)+)<\/mermaid>/g,(e)=>`<pre class="mermaid">${e[1]}</pre>`]]
+}
+const md=(str)=>(new Femd(str.split('\n').map(e=>e.trim())).toDOM(Femdconfig)).n.join('');
 // 中间件
 app.use(cors());
 app.use(express.json());
@@ -17,6 +20,7 @@ app.use(express.static('public')); // 前端页面
 
 // 确保目录
 fs.ensureDirSync('uploads');
+fs.ensureDirSync('mds');
 
 // 数据库初始化
 const db = new sqlite3.Database('data/files.db');
@@ -59,7 +63,7 @@ const uuid = () => crypto.randomBytes(16).toString('hex');
 // multer 配置：限制 3 MB
 const upload = multer({
   dest: 'uploads/tmp',
-  limits: { fileSize: 3 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 },
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads'),
     filename: (req, file, cb) => {
@@ -84,7 +88,7 @@ app.get('/api/folders', (req, res) => {
 
 // POST /api/folders
 app.post('/api/folders', (req, res) => {
-  const { name, parentId = null } = req.body;
+  const { name, parentId = 0 } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   db.run('INSERT INTO folders (name, parentId) VALUES (?, ?)', [name, parentId], function (err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -117,6 +121,9 @@ app.post('/api/files/upload', upload.array('files'), (req, res) => {
 
   req.files.forEach(file => {
     const uid = path.basename(file.filename, path.extname(file.filename));
+    if(path.extname(file.filename)=='.md'){
+      fs.copyFileSync(path.join('uploads',file.filename),path.join("mds",uid+'.html'))
+    }
     db.run(`INSERT INTO files (uuid, originalName, size, type)
             VALUES (?, ?, ?, ?)`,
       [uid, file.originalname, file.size, file.mimetype],
@@ -139,22 +146,82 @@ app.post('/api/files/upload', upload.array('files'), (req, res) => {
 
 // 2. 移动：支持多文件夹（全量替换，保持幂等）
 // 1. 复制到文件夹（增量，不删除旧绑定）
-app.post('/api/files/:id/copy-to-folders', (req, res) => {
-  const uid = req.params.id;
-  const { folderIds } = req.body;          // 要复制到的文件夹 ID 数组
-  if (!Array.isArray(folderIds) || !folderIds.length)
+app.post('/api/files/copy-to-folder', (req, res) => {
+  const uid = req.params.id;console.log(req.body)
+  const { folderId, fileIds } = req.body;          // 要复制到的文件夹 ID 数组
+  if (!Array.isArray(fileIds) || !fileIds.length)
     return res.status(400).json({ error: 'folderIds array required' });
 
   const stmt = db.prepare(
     'INSERT OR IGNORE INTO fileFolders (fileUuid, folderId) VALUES (?, ?)'
   );
-  folderIds.forEach(fid => stmt.run(uid, fid));
+  fileIds.forEach(uid => stmt.run(uid, folderId));
   stmt.finalize(function (err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: 1 });
   });
 });
+// 在 app.js 已有路由后面追加
+app.post('/api/files/create-markdown', express.json(), async (req, res) => {
+  const { folderId, title, content = '' } = req.body;
+  if (!title) return res.status(400).json({ error: 'title required' });
 
+  const uid   = uuid();                                    // 随机文件名
+  const fname = title.endsWith('.md') ? title : `${title}.md`;
+  const fpath = path.join('uploads', uid + '.md');
+  const fpath2 = path.join('mds', uid + '.html');
+
+  try {
+    // 1. 落盘
+    await fs.outputFile(fpath, content, 'utf8');
+    await fs.outputFile(fpath2, md(content), 'utf8');
+    const stat = await fs.stat(fpath);
+
+    // 2. 写 files 表
+    await new Promise((resolve, reject) => {
+      db.run(`INSERT INTO files(uuid, originalName, size, type)
+              VALUES(?,?,?,?)`,
+        [uid, fname, stat.size, 'text/markdown'],
+        function (err) { err ? reject(err) : resolve(this.lastID); });
+    });
+
+    // 3. 绑定文件夹（如果不是「全部文件」）
+    await new Promise((resolve, reject) => {
+        db.run(`INSERT OR IGNORE INTO fileFolders(fileUuid, folderId) VALUES(?,?)`,
+          [uid, folderId],
+          err => err ? reject(err) : resolve());
+      });
+    
+
+    res.json({ ok: 1 });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+// ============== 删除文件夹 ==============
+app.delete('/api/folders/:id', (req, res) => {
+  const folderId = req.params.id;
+
+  // 1. 先看有没有子文件夹
+  db.get('SELECT id FROM folders WHERE parentId = ? LIMIT 1', [folderId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row) return res.status(409).json({ error: '文件夹非空，请先删除子文件夹' });
+
+    // 2. 再看有没有文件绑定
+    db.get('SELECT 1 FROM fileFolders WHERE folderId = ? LIMIT 1', [folderId], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row) return res.status(409).json({ error: '文件夹内仍有文件，请先移除或删除文件' });
+
+      // 3. 真正删除
+      db.run('DELETE FROM folders WHERE id = ?', [folderId], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: '文件夹不存在' });
+        res.json({ ok: 1 });
+      });
+    });
+  });
+});
 // 2. 从指定文件夹移除（支持多文件夹）
 app.post('/api/files/:id/remove-from-folder', (req, res) => {
   const uid = req.params.id;
@@ -219,22 +286,32 @@ app.get('/api/files/:id/content', (req, res) => {
     if (err || !file) return res.status(404).json({ error: 'file not found' });
 
     const ext = path.extname(file.originalName).toLowerCase();
-    const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext);
-    const diskPath = path.join('uploads', file.uuid + ext);
+    if(ext=='.md'){
+      const diskPath = path.join('mds', file.uuid + '.html');
+      fs.readFile(diskPath, (err, data) => {
+        if (err) return res.status(500).json({ error: err.message });
 
-    fs.readFile(diskPath, (err, data) => {
-      if (err) return res.status(500).json({ error: err.message });
-
-      if (isImage) {
-        // 图片：直接二进制
-        res.set('Content-Type', file.type || 'image/jpeg');
-        return res.send(data); // 二进制
-      } else {
-        // 文本：utf-8 字符串
         res.set('Content-Type', 'text/plain; charset=utf-8');
         return res.send(data.toString('utf-8'));
-      }
-    });
+      });
+    }else{
+      const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext);
+      const diskPath = path.join('uploads', file.uuid + ext);
+
+      fs.readFile(diskPath, (err, data) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (isImage) {
+          // 图片：直接二进制
+          res.set('Content-Type', file.type || 'image/jpeg');
+          return res.send(data); // 二进制
+        } else {
+          // 文本：utf-8 字符串
+          res.set('Content-Type', 'text/plain; charset=utf-8');
+          return res.send(data.toString('utf-8'));
+        }
+      });
+    }
   });
 });
 
@@ -254,7 +331,11 @@ app.delete('/api/files/:id', (req, res) => {
   const uid = req.params.id;
   db.get('SELECT * FROM files WHERE uuid = ?', [uid], (err, file) => {
     if (err || !file) return res.status(404).json({ error: 'file not found' });
-    const diskPath = path.join('uploads', file.uuid + path.extname(file.originalName));
+    var w0=path.extname(file.originalName);
+    if(w0=='.md'){
+      fs.remove(path.join('mds', file.uuid +'.html'), () => { /* 忽略实体删除失败 */ });
+    }
+    const diskPath = path.join('uploads', file.uuid + w0);
     fs.remove(diskPath, () => { /* 忽略实体删除失败 */ });
     db.serialize(() => {
       db.run('DELETE FROM fileFolders WHERE fileUuid = ?', [uid]);
@@ -287,3 +368,21 @@ app.post('/api/files/:id/tags', (req, res) => {
 app.listen(PORT, () => {
   console.log(`File manager server running at http://localhost:${PORT}`);
 });
+
+function closeGracefully() {
+  console.log('\n收到 SIGINT，正在关闭数据库...');
+  db.close((err) => {
+    if (err) {
+      console.error('关闭数据库失败', err);
+      process.exitCode = 1;
+    } else {
+      console.log('数据库已关闭，进程退出');
+    }
+    // 必须手动 exit，否则事件循环里还有 SIGINT 监听器，进程不会自动结束
+    process.exit();
+  });
+}
+
+// 3. 监听系统信号
+process.on('SIGINT', closeGracefully);
+process.on('SIGTERM', closeGracefully);

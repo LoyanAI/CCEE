@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能文件管理系统</title>
     <script src="masonry.js"></script>
-    <script src="femd.min.js"></script>
+    <script src="mermaid.min.js"></script>
     <style>
 /* 基础变量与重置 */
 #fileView{
@@ -314,6 +314,57 @@ body {
   text-align: right;
 }
 .dialog-footer .btn { margin-left: 8px; }
+.paste-bar{
+  position:fixed; bottom:20px; left:50%;
+  transform:translateX(-50%);
+  background:var(--card); border:1px solid var(--border);
+  border-radius:8px; padding:8px 14px; display:flex; gap:10px;
+  align-items:center; z-index:2500;
+}
+/* ======== 新建 Markdown 弹窗专用 ======== */
+#newMdDialog .dialog-content {
+  width: 90%;
+  max-width: 520px;          /* 比原来略宽，适合码字 */
+  display: flex;
+  flex-direction: column;
+}
+
+#newMdDialog .dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;                 /* 标题与正文间距 */
+}
+
+#newMdDialog .dialog-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(15, 23, 42, .8);
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+#newMdDialog .dialog-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, .25);
+}
+
+/* 只允许上下拖拽，避免左右拉爆布局 */
+#newMdDialog textarea.dialog-input {
+  resize: vertical;
+  min-height: 180px;
+}
+
+/* 底部按钮区 */
+#newMdDialog .dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;                  /* 替代原来的 margin-left */
+}
     </style>
 </head>
 <body>
@@ -340,6 +391,9 @@ body {
                     </button>
                     <button class="btn" id="refreshBtn">
                         <span>🔄</span> 刷新
+                    </button>
+                    <button class="btn btn-primary" id="newMdBtn">
+                      <span>📝</span> 新建 Markdown
                     </button>
                 </div>
                 <div class="toolbar-right">
@@ -445,17 +499,39 @@ body {
     </div>
 
     <!-- 文件上传输入框 -->
-    <input type="file" class="file-input" id="fileInput" multiple accept=".txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.pdf">
+    <input type="file" class="file-input" id="fileInput" multiple accept=".txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.pdf,.md">
 
     <!-- 提示消息 -->
     <div class="toast" id="toast"></div>
 
+    <div id="pasteBar" class="paste-bar" style="display:none">
+  <span id="pasteInfo"></span>
+  <button class="btn btn-primary" id="pasteCancel">取消</button></div>
+  <!-- 新建 Markdown 文件弹窗 -->
+<div class="dialog" id="newMdDialog">
+  <div class="dialog-content">
+    <div class="dialog-header">新建 Markdown 文件</div>
+    <div class="dialog-body">
+      <input type="text" id="newMdTitle" class="dialog-input" placeholder="文件名（无需 .md）">
+      <textarea id="newMdContent" class="dialog-input" rows="12"
+                placeholder="在这里输入 Markdown 内容…"></textarea>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn" id="cancelNewMd">取消</button>
+      <button class="btn btn-primary" id="confirmNewMd">确定</button>
+    </div>
+  </div>
+</div>
     <script>
+var wpindex=0;
+
 class FileManager {
   constructor() {
-    this.currentFolder = 'all';
+    this.currentFolder = '0';
     this.selectedFiles = new Set();
+    this.clipboard = [];   // type: 'copy' | 'move'
     this.files = [];          // 当前列表
+    this.subfolders=[];
     this.folders = [];        // 所有文件夹
     this.contextTarget = null; // 右键文件对象
     this.init();
@@ -468,6 +544,41 @@ class FileManager {
   }
 
   bindEvents() {
+    // 顶部工具栏「新建 Markdown」按钮
+document.getElementById('newMdBtn').addEventListener('click', () => {
+  document.getElementById('newMdDialog').classList.add('active');
+  document.getElementById('newMdTitle').focus();
+});
+
+// 弹窗「取消」
+document.getElementById('cancelNewMd').addEventListener('click', () => {
+  document.getElementById('newMdDialog').classList.remove('active');
+  document.getElementById('newMdTitle').value = '';
+  document.getElementById('newMdContent').value = '';
+});
+
+// 弹窗「确定」
+document.getElementById('confirmNewMd').addEventListener('click', async () => {
+  const title = document.getElementById('newMdTitle').value.trim();
+  const content = document.getElementById('newMdContent').value;
+  if (!title) { fileManager.showToast('请输入文件名', 'error'); return; }
+
+  const res = await fetch('/api/files/create-markdown', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folderId: Number(fileManager.currentFolder), title, content })
+  }).then(r => r.json());
+
+  if (res.ok) {
+    fileManager.showToast('Markdown 文件已创建', 'success');
+    document.getElementById('newMdDialog').classList.remove('active');
+    document.getElementById('newMdTitle').value = '';
+    document.getElementById('newMdContent').value = '';
+    fileManager.loadFiles();          // 刷新
+  } else {
+    fileManager.showToast('创建失败：' + res.error, 'error');
+  }
+});
     // 上传
     document.getElementById('uploadBtn').addEventListener('click', () => {
       document.getElementById('fileInput').click();
@@ -514,23 +625,21 @@ class FileManager {
     this.folders = res.folders;
     this.renderFolders();
   }
-  async loadFiles() {
-    const url = this.currentFolder === 'all'
-        ? '/api/files'
-        : `/api/files?folder=${this.currentFolder}`;
+  async loadFiles() {console.log("Loading Folder="+this.currentFolder)
+    const url = `/api/files?folder=${this.currentFolder}`;
     const [resFiles, resSub] = await Promise.all([
         fetch(url).then(r => r.json()),
-        this.currentFolder === 'all'
-            ? { folders: [] }                           // 所有文件 不查子级
-            : fetch(`/api/folders/children/${this.currentFolder}`).then(r => r.json())
+        fetch(`/api/folders/children/${this.currentFolder}`).then(r => r.json())
     ]);
 
     this.files = resFiles.files;
     this.renderFiles();
-    this.renderSubFolders(resSub.folders);              // 🔥渲染子文件夹
+    this.renderSubFolders();              // 🔥渲染子文件夹
     //this.updateFolderCounts();
 }
-renderSubFolders(list) {
+async renderSubFolders() {
+  this.subfolders=(await fetch(`/api/folders/children/${this.currentFolder}`).then(r => r.json())).folders;
+  var list=this.subfolders;
     const bar = document.getElementById('subFolderBar');
     bar.innerHTML = '';
     if (!list.length) { bar.style.display = 'none'; return; }
@@ -590,16 +699,13 @@ renderSubFolders(list) {
           // 右键：新建子文件夹
           item.addEventListener('contextmenu', e => {
             e.preventDefault();
-            const name = prompt('新建子文件夹名称：');
-            if (name) {
-              fetch('/api/folders', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, parentId: n.id })
-              }).then(() => {
-                this.showToast('子文件夹已创建', 'success');
-                this.loadFolders(); // 刷新树
-              });
+            if(confirm(`确定删除文件夹「${n.name}」？\n（子文件夹或文件存在时会被阻止）`)){
+              fetch(`/api/folders/${n.id}`, {method:'DELETE'})
+                .then(r=>r.json().then(d=>{return {ok:r.ok, data:d}}))
+                .then(({ok,data})=>{
+                  if(ok){ this.showToast('已删除','success'); this.loadFolders();}
+                  else  { this.showToast(data.error||'删除失败','error');}
+                });
             }
           });
 
@@ -614,9 +720,9 @@ renderSubFolders(list) {
 
   renderFiles() {
   const strip = document.getElementById('fileGrid');
-  // ❌ 删掉 strip.innerHTML = '';
-
-  this.files.forEach(file => {
+  strip.innerHTML = '';
+  wpindex=this.files.length;
+  this.files.forEach((file) => {
     const cardId = `file-${file.id}`;
     let card = document.getElementById(cardId);
 
@@ -645,7 +751,7 @@ renderSubFolders(list) {
       content = `<div id="md-${file.id}" style="max-height:60vh;overflow:auto;">加载中…</div>`;
       fetch(`/api/files/${file.id}/content`)
         .then(r => r.text())
-        .then(t => {new Femd(t.split('\n')).toDOM().mount(`#md-${file.id}`)});
+        .then(t => {document.querySelector(`#md-${file.id}`).innerHTML=t;});
     }else if (isTxt && file.id) {
       content = `<pre id="txt-${file.id}" style="max-height:60vh;overflow:auto;">加载中…</pre>`;
       fetch(`/api/files/${file.id}/content`)
@@ -667,9 +773,12 @@ setTimeout(() => {
     card.style.width = targetW + 'px';
     console.log(card.scrollWidth);
     
-    // 可选：重新布局Masonry
-    const strip = document.getElementById('fileGrid');
-    strip._masonry?.layout();
+    wpindex--;
+    if(wpindex==0){
+      const strip = document.getElementById('fileGrid');
+      mermaid.run()
+      requestAnimationFrame(() => {strip._masonry?.layout();})
+    }
   });
 }, 50);
 
@@ -739,7 +848,8 @@ requestAnimationFrame(() => {
     const menu = document.getElementById('contextMenu');
     menu.innerHTML = `
       <div class="context-menu-item" data-action="prop"><span>ℹ️</span> 属性</div>
-      <div class="context-menu-item" data-action="copy"><span>📋</span> 复制到文件夹</div>
+      <div class="context-menu-item" data-action="copy"><span>📋</span> 复制</div>
+      ${this.clipboard.length?`<div class="context-menu-item" data-action="paste"><span>Paste</span> 粘贴</div>`:''}
       <div class="context-menu-item" data-action="remove"><span>📤</span> 从文件夹移除</div>
       <div class="context-menu-separator"></div>
       <div class="context-menu-item" data-action="del"><span>🗑️</span> 彻底删除</div>
@@ -751,12 +861,45 @@ requestAnimationFrame(() => {
       item.addEventListener('click', () => {
         const act = item.dataset.action;
         if (act === 'prop') this.showPropDialog(file);
-        if (act === 'copy') this.showCopyDialog(file);
+        if(act==='copy') this.copyToClipboard(file.id,'copy');
+        if(act==='paste') this.tryPasteToFolder(Number(this.currentFolder));
         if (act === 'remove') this.showRemoveDialog(file);
         if (act === 'del') this.permanentDelete(file);
         this.hideContextMenu();
       });
     });
+  }
+  copyToClipboard(fileIds, type){
+    this.clipboard.push(fileIds)
+    const n =this.clipboard.length;
+    document.getElementById('pasteInfo').textContent =
+      `已复制 ${n} 个文件，点击任意文件夹即可粘贴`;
+    document.getElementById('pasteBar').style.display = 'flex';
+  }
+
+  cancelClipboard(){
+    this.clipboard = [];
+    document.getElementById('pasteBar').style.display = 'none';
+  }
+
+  // 统一入口：任意地方选中文件夹就尝试粘贴
+  async tryPasteToFolder(folderId){
+    const files  = this.clipboard;
+    if (!files.length) return;          // 没有剪贴内容直接返回
+    const url = `/api/files/copy-to-folder`
+    const res = await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ folderId:folderId, fileIds:files })
+    }).then(r=>r.json());
+
+    if (res.ok){
+      this.showToast(`已成功复制到目标文件夹`,'success');
+      this.loadFiles();                 // 刷新当前视图
+      this.cancelClipboard();
+    }else{
+      this.showToast('操作失败','error');
+    }
   }
   hideContextMenu() {
     document.getElementById('contextMenu').style.display = 'none';
@@ -864,7 +1007,7 @@ requestAnimationFrame(() => {
   const fd = new FormData();
   Array.from(files).forEach(f => fd.append('files', f));
   // 当前不是「所有文件」就自动绑定
-  if (this.currentFolder !== 'all') fd.append('folders[]', this.currentFolder);
+  fd.append('folders[]', this.currentFolder);
   const res = await fetch('/api/files/upload', { method: 'POST', body: fd }).then(r => r.json());
   this.showToast(`已上传 ${res.count} 个文件到当前文件夹`, 'success');
   this.loadFiles();
@@ -915,7 +1058,7 @@ requestAnimationFrame(() => {
   showNewFolderDialog() {
   const name = prompt('新建文件夹名称：');
   if (!name) return;
-  const parentId = this.currentFolder === 'all' ? null : Number(this.currentFolder);
+  const parentId = Number(this.currentFolder);
   fetch('/api/folders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -923,6 +1066,7 @@ requestAnimationFrame(() => {
   }).then(r => r.json()).then(() => {
     this.showToast('文件夹已创建', 'success');
     this.loadFolders(); // 重新渲染树
+    this.renderSubFolders(); // 重新渲染树
   });
 }
 }
@@ -932,6 +1076,9 @@ window.addEventListener('resize', () => {
 });
 // 启动
 const fileManager = new FileManager();
+document.getElementById('pasteCancel').onclick = () => fileManager.cancelClipboard();
+mermaid.initialize({startOnLoad:true,theme:'dark'});
     </script>
+</div>
 </body>
 </html>
